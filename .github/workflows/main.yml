@@ -1,22 +1,29 @@
 name: Monitor de Vendas 1900min
 on:
   schedule:
-    - cron: '*/5 * * * *' # Comando para rodar a cada 5 minutos
-  workflow_dispatch: # Permite que você clique em um botão para testar agora
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
 
 jobs:
-  build:
+  run-bot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - name: Baixar Codigo
+        uses: actions/checkout@v3
+        
+      - name: Instalar Python
+        uses: actions/setup-python@v4
         with:
           python-version: '3.9'
+          
       - name: Instalar Dependencias
         run: pip install requests
+        
       - name: Executar Bot
-        run: python bot_email.py
         env:
+          # AQUI ESTAVA O PROBLEMA: Faltava passar a URL para o script
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }} 
+        run: python bot_email.py
