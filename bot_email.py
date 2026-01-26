@@ -5,11 +5,14 @@ import requests
 import os
 import uuid
 
-# --- SEUS DADOS JÁ CONFIGURADOS ---
+# --- CONFIGURAÇÕES FINAIS ---
+# URL do seu Banco de Dados
 SUPABASE_URL = "https://gmdilslueoobjrjvsfjk.supabase.co"
-SUPABASE_KEY = "sb_publishable_Qe2tvLvV_CSPXaCZbMVT3Q_buxZ9Qrf"
 
-# O usuário e senha do e-mail continuam vindo dos Segredos (Segurança)
+# SUA NOVA CHAVE SECRETA (A que permite salvar os dados)
+SUPABASE_KEY = "sb_secret_EhIcfETy5O8B_pfBy0DEmA_9EYAu38P"
+
+# O usuário e senha do e-mail continuam vindo dos Segredos do GitHub
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
 
@@ -39,13 +42,13 @@ def cadastrar_no_supabase(num_compra):
     }
     
     try:
-        # AQUI ESTAVA O ERRO 404: Agora o endereço está completo
+        # Caminho completo para a tabela 'licencas'
         url_completa = f"{SUPABASE_URL}/rest/v1/licencas"
         
         r = requests.post(url_completa, json=payload, headers=headers)
         
         if r.status_code in [200, 201]:
-            print(f"✅ SUCESSO! Venda salva no banco: {num_compra} | Serial: {serial_key}")
+            print(f"✅ SUCESSO TOTAL! Venda salva: {num_compra} | Key: {serial_key}")
         else:
             print(f"❌ Erro ao salvar ({r.status_code}): {r.text}")
     except Exception as e:
@@ -58,7 +61,7 @@ def processar_vendas():
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("inbox")
         
-        # Busca apenas e-mails NÃO LIDOS com o assunto correto
+        # Busca apenas e-mails NÃO LIDOS
         status, response = mail.search(None, '(UNSEEN SUBJECT "Venda confirmada -")')
         
         email_ids = response[0].split()
@@ -87,13 +90,13 @@ def processar_vendas():
             if num_venda:
                 print(f"Processando venda: {num_venda}")
                 cadastrar_no_supabase(num_venda)
-                mail.store(num, '+FLAGS', '\\Seen') # Marca como lido após sucesso
+                mail.store(num, '+FLAGS', '\\Seen') # Marca como lido se der certo
             else:
-                print("E-mail encontrado, mas o número da venda não estava no padrão esperado.")
+                print("E-mail encontrado, mas número da venda não identificado.")
         
         mail.logout()
     except Exception as e:
-        print(f"Erro geral no script: {e}")
+        print(f"Erro no script: {e}")
 
 if __name__ == "__main__":
     processar_vendas()
