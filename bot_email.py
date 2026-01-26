@@ -12,20 +12,18 @@ SUPABASE_URL = os.getenv("https://gmdilslueoobjrjvsfjk.supabase.co")
 SUPABASE_KEY = os.getenv("sb_publishable_Qe2tvLvV_CSPXaCZbMVT3Q_buxZ9Qrf")
 
 
-def extrair_numero_compra(corpo_email):
-    # Tenta capturar apenas os números após "compra:" ou "venda:"
-    match = re.search(r'(?:compra|venda|Número):\s*(\d+)', corpo_email, re.IGNORECASE)
-    return match.group(1) if match else None
-
-
-def gerar_chave_formatada():
-    # Gera um código aleatório e formata como XXXX-XXXX-XXXX-XXXX
-    raw = str(uuid.uuid4()).replace('-', '').upper()
-    return f"{raw[0:4]}-{raw[4:8]}-{raw[8:12]}-{raw[12:16]}"
+def extrair_numero_venda(corpo_email):
+    # CORREÇÃO: Procura especificamente por "Número da venda:" para não pegar o ID do anúncio
+    match = re.search(r'Número da venda:\s*(\d+)', corpo_email, re.IGNORECASE)
+    if match:
+        return match.group(1)
+    return None
 
 
 def cadastrar_no_supabase(num_compra):
-    serial_key = gerar_chave_formatada()
+    # Gera chave aleatória (Ex: A1B2-C3D4-E5F6-7890)
+    raw = str(uuid.uuid4()).replace('-', '').upper()
+    serial_key = f"{raw[0:4]}-{raw[4:8]}-{raw[8:12]}-{raw[12:16]}"
 
     headers = {
         "apikey": SUPABASE_KEY,
@@ -40,11 +38,19 @@ def cadastrar_no_supabase(num_compra):
         "ativo": True
     }
 
-    r = requests.post(SUPABASE_URL, json=payload, headers=headers)
-    if r.status_code in [200, 201]:
-        print(f"✅ Sucesso! Compra: {num_compra} | Key: {serial_key}")
-    else:
-        print(f"❌ Erro ao salvar: {r.text}")
+    # Se SUPABASE_URL vier vazio, avisa no log para facilitar debug
+    if not SUPABASE_URL:
+        print("ERRO CRÍTICO: SUPABASE_URL não foi encontrada nas variáveis de ambiente.")
+        return
+
+    try:
+        r = requests.post(SUPABASE_URL, json=payload, headers=headers)
+        if r.status_code in [200, 201]:
+            print(f"✅ SUCESSO! Venda: {num_compra} | Key: {serial_key}")
+        else:
+            print(f"❌ Erro Supabase ({r.status_code}): {r.text}")
+    except Exception as e:
+        print(f"❌ Erro de conexão: {e}")
 
 
 def processar_vendas():
@@ -53,11 +59,11 @@ def processar_vendas():
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("inbox")
 
-        # Filtra apenas e-mails da DFG não lidos
+        # Filtra pelo assunto exato que você recebe
         status, response = mail.search(None, '(UNSEEN SUBJECT "Venda confirmada -")')
 
         email_ids = response[0].split()
-        print(f"E-mails encontrados: {len(email_ids)}")
+        print(f"E-mails encontrados para processar: {len(email_ids)}")
 
         for num in email_ids:
             status, data = mail.fetch(num, '(RFC822)')
@@ -67,20 +73,30 @@ def processar_vendas():
             if msg.is_multipart():
                 for part in msg.walk():
                     if part.get_content_type() == "text/plain":
-                        corpo = str(part.get_payload(decode=True).decode('utf-8'))
+                        try:
+                            corpo = part.get_payload(decode=True).decode('utf-8')
+                        except:
+                            corpo = part.get_payload(decode=True).decode('latin-1')
             else:
-                corpo = str(msg.get_payload(decode=True).decode('utf-8'))
+                try:
+                    corpo = msg.get_payload(decode=True).decode('utf-8')
+                except:
+                    corpo = msg.get_payload(decode=True).decode('latin-1')
 
-            num_compra = extrair_numero_compra(corpo)
+            # Aqui chamamos a nova função corrigida
+            num_venda = extrair_numero_venda(corpo)
 
-            if num_compra:
-                cadastrar_no_supabase(num_compra)
-                # Marca como lido apenas se deu tudo certo
+            if num_venda:
+                print(f"Processando venda número: {num_venda}")
+                cadastrar_no_supabase(num_venda)
+                # Marca como lido
                 mail.store(num, '+FLAGS', '\\Seen')
+            else:
+                print("E-mail lido, mas não achei o 'Número da venda'.")
 
         mail.logout()
     except Exception as e:
-        print(f"Erro fatal: {e}")
+        print(f"Erro no processamento: {e}")
 
 
 if __name__ == "__main__":
