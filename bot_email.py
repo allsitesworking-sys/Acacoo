@@ -8,7 +8,8 @@ import uuid
 # Configurações via Secrets
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
-SUPABASE_URL = os.getenv("https://gmdilslueoobjrjvsfjk.supabase.co")
+# Substitua a linha antiga por esta:
+SUPABASE_URL = "https://gmdilslueoobjrjvsfjk.supabase.co"
 SUPABASE_KEY = os.getenv("sb_publishable_Qe2tvLvV_CSPXaCZbMVT3Q_buxZ9Qrf")
 
 
@@ -101,3 +102,4 @@ def processar_vendas():
 
 if __name__ == "__main__":
     processar_vendas()
+
