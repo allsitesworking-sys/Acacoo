@@ -16,12 +16,12 @@ jobs:
         with:
           python-version: '3.9'
           
-      - name: Instalar Dependencias
+      - name: Instalar Bibliotecas
         run: pip install requests
         
       - name: Executar Bot
         env:
-          # AQUI ESTAVA O PROBLEMA: Faltava passar a URL para o script
+          # AQUI ESTA A CORRECAO: Passando todas as chaves
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
