@@ -7,67 +7,20 @@ import uuid
 
 # --- CONFIGURAÇÕES ---
 SUPABASE_URL = "https://gmdilslueoobjrjvsfjk.supabase.co"
-
-# CORREÇÃO: A chave deve ser uma string direta ou a variável de ambiente correta.
-# Como você já expôs a chave aqui, vou colocá-la direta para garantir que funcione.
-SUPABASE_KEY = "sb_secret_EhIcfETy5O8B_pfBy0DEmA_9EYAu38P" 
+SUPABASE_KEY = "sb_secret_EhIcfETy5O8B_pfBy0DEmA_9EYAu38P" # Use a SECRET aqui
 
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
 
-def decodificar_corpo(msg):
-    corpo = ""
-    if msg.is_multipart():
-        for part in msg.walk():
-            ctype = part.get_content_type()
-            cdispo = str(part.get("Content-Disposition"))
-
-            if ctype == "text/plain" and "attachment" not in cdispo:
-                payload = part.get_payload(decode=True)
-                try: corpo = payload.decode('utf-8')
-                except: 
-                    try: corpo = payload.decode('latin-1')
-                    except: corpo = str(payload)
-                break 
-    else:
-        payload = msg.get_payload(decode=True)
-        try: corpo = payload.decode('utf-8')
-        except: 
-            try: corpo = payload.decode('latin-1')
-            except: corpo = str(payload)
-            
-    return corpo
-
 def extrair_dados_venda(corpo_email):
-    # Remove quebras de linha para facilitar a busca
-    corpo_limpo = " ".join(corpo_email.splitlines())
-
-    # 1. Extrai o Número da Venda (Prioridade para o campo específico)
-    match_venda = re.search(r'Número da venda:\s*(\d+)', corpo_email, re.IGNORECASE)
-    if match_venda:
-        numero = match_venda.group(1)
-    else:
-        # Se falhar, tenta pegar apenas "Número:" (cuidado para não pegar o do anúncio)
-        # No seu email, o número da venda aparece bem claro no final.
-        match_generic = re.search(r'Número da venda:\s*(\d+)', corpo_limpo, re.IGNORECASE)
-        numero = match_generic.group(1) if match_generic else None
-
-    # 2. Extrai o Nome do Produto
-    # Pega tudo depois de "Anúncio:" até encontrar o traço do preço
-    match_prod = re.search(r'Anúncio:\s*(.+?)\s*-\s*\d+', corpo_email, re.IGNORECASE | re.DOTALL)
+    # 1. Extrai o Número da Venda
+    match_num = re.search(r'Número da venda:\s*(\d+)', corpo_email, re.IGNORECASE)
+    numero = match_num.group(1) if match_num else None
     
-    if match_prod:
-        # Pega o grupo, remove quebras de linha e espaços extras
-        raw_prod = match_prod.group(1)
-        produto = " ".join(raw_prod.split()).strip()
-    else:
-        # Tentativa de backup linha a linha
-        match_backup = re.search(r'Anúncio:\s*(.+)', corpo_email, re.IGNORECASE)
-        if match_backup:
-            # Separa no último traço (-)
-            produto = match_backup.group(1).rsplit('-', 1)[0].strip()
-        else:
-            produto = "Software Desconhecido"
+    # 2. Extrai o Nome do Produto (Pega tudo depois de 'Anúncio:' até o traço do preço)
+    # Exemplo do email: "Anúncio: Mucabrasil Auto Pick | Zen... - 39,99"
+    match_prod = re.search(r'Anúncio:\s*(.*?)\s*-\s*\d+', corpo_email, re.IGNORECASE)
+    produto = match_prod.group(1).strip() if match_prod else "Software Desconhecido"
     
     return numero, produto
 
@@ -85,21 +38,19 @@ def cadastrar_no_supabase(num_compra, nome_produto):
     payload = {
         "numero_compra": str(num_compra), 
         "serial_key": serial_key,
-        "nome_produto": nome_produto,
+        "nome_produto": nome_produto,  # <--- NOVA INFORMAÇÃO ENVIADA
         "ativo": True
     }
     
     try:
         url_completa = f"{SUPABASE_URL}/rest/v1/licencas"
         r = requests.post(url_completa, json=payload, headers=headers)
-        
         if r.status_code in [200, 201]:
-            print(f"✅ SUCESSO! Venda: {num_compra} | Produto: {nome_produto} | Key: {serial_key}")
+            print(f"✅ Venda: {num_compra} | Produto: {nome_produto} | Key Gerada")
         else:
-            print(f"❌ Erro Supabase ({r.status_code}): {r.text}")
-            
+            print(f"❌ Erro Supabase: {r.text}")
     except Exception as e:
-        print(f"❌ Erro de Conexão: {e}")
+        print(f"❌ Erro Conexão: {e}")
 
 def processar_vendas():
     try:
@@ -108,35 +59,33 @@ def processar_vendas():
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("inbox")
         
-        # BUSCA APENAS EMAILS NÃO LIDOS (UNSEEN)
-        status, response = mail.search(None, '(UNSEEN SUBJECT "Venda confirmada")')
+        status, response = mail.search(None, '(UNSEEN SUBJECT "Venda confirmada -")')
         email_ids = response[0].split()
-        print(f"E-mails novos encontrados: {len(email_ids)}")
+        print(f"E-mails novos: {len(email_ids)}")
 
         for num in email_ids:
-            try:
-                status, data = mail.fetch(num, '(RFC822)')
-                msg = email.message_from_bytes(data[0][1])
-                corpo = decodificar_corpo(msg)
-                
-                # Debug para você ver o que ele leu
-                # print(f"--- Corpo do Email ---\n{corpo}\n----------------------")
-
-                numero, produto = extrair_dados_venda(corpo)
-                
-                if numero:
-                    print(f"Processando venda: {numero}")
-                    cadastrar_no_supabase(numero, produto)
-                    mail.store(num, '+FLAGS', '\\Seen') # Marca como lido
-                else:
-                    print(f"⚠️ E-mail lido, mas número não encontrado.")
-                    
-            except Exception as e_email:
-                print(f"Erro no email {num}: {e_email}")
+            status, data = mail.fetch(num, '(RFC822)')
+            msg = email.message_from_bytes(data[0][1])
+            
+            corpo = ""
+            if msg.is_multipart():
+                for part in msg.walk():
+                    if part.get_content_type() == "text/plain":
+                        try: corpo = part.get_payload(decode=True).decode('utf-8')
+                        except: corpo = part.get_payload(decode=True).decode('latin-1')
+            else:
+                try: corpo = msg.get_payload(decode=True).decode('utf-8')
+                except: corpo = msg.get_payload(decode=True).decode('latin-1')
+            
+            numero, produto = extrair_dados_venda(corpo)
+            
+            if numero:
+                cadastrar_no_supabase(numero, produto)
+                mail.store(num, '+FLAGS', '\\Seen')
         
         mail.logout()
     except Exception as e:
-        print(f"Erro Geral: {e}")
+        print(f"Erro: {e}")
 
 if __name__ == "__main__":
     processar_vendas()
