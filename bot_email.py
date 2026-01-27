@@ -8,7 +8,7 @@ import uuid
 # --- CONFIGURAÇÕES ---
 # URL do Supabase (Pode ficar fixa pois é publica, mas a Key deve vir do Secret)
 SUPABASE_URL = "https://gmdilslueoobjrjvsfjk.supabase.co" 
-SUPABASE_KEY = os.getenv("SUPABASE_KEY") # Pega a SECRET Key dos Segredos do GitHub
+SUPABASE_KEY = os.getenv("sb_secret_EhIcfETy5O8B_pfBy0DEmA_9EYAu38P") # Pega a SECRET Key dos Segredos do GitHub
 
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
@@ -120,3 +120,4 @@ def processar_vendas():
 
 if __name__ == "__main__":
     processar_vendas()
+
