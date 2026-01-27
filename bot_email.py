@@ -7,20 +7,41 @@ import uuid
 
 # --- CONFIGURAÇÕES ---
 SUPABASE_URL = "https://gmdilslueoobjrjvsfjk.supabase.co"
-SUPABASE_KEY = "sb_secret_EhIcfETy5O8B_pfBy0DEmA_9EYAu38P" # Use a SECRET aqui
+# Mantive sua chave fixa como você pediu (mas lembre-se que o ideal é usar Secrets)
+SUPABASE_KEY = "sb_secret_EhIcfETy5O8B_pfBy0DEmA_9EYAu38P"
 
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
 
 def extrair_dados_venda(corpo_email):
     # 1. Extrai o Número da Venda
+    # Tenta achar o padrão. Se falhar, tenta limpar quebras de linha e buscar de novo.
     match_num = re.search(r'Número da venda:\s*(\d+)', corpo_email, re.IGNORECASE)
+    if not match_num:
+         corpo_limpo = " ".join(corpo_email.splitlines())
+         match_num = re.search(r'Número da venda:\s*(\d+)', corpo_limpo, re.IGNORECASE)
+    
     numero = match_num.group(1) if match_num else None
     
-    # 2. Extrai o Nome do Produto (Pega tudo depois de 'Anúncio:' até o traço do preço)
-    # Exemplo do email: "Anúncio: Mucabrasil Auto Pick | Zen... - 39,99"
-    match_prod = re.search(r'Anúncio:\s*(.*?)\s*-\s*\d+', corpo_email, re.IGNORECASE)
-    produto = match_prod.group(1).strip() if match_prod else "Software Desconhecido"
+    # 2. Extrai o Nome do Produto (A CORREÇÃO ESTÁ AQUI)
+    # Pega TUDO o que vier depois de "Anúncio:" até o fim da linha
+    match_prod = re.search(r'Anúncio:\s*(.+)', corpo_email, re.IGNORECASE)
+    
+    if match_prod:
+        linha_completa = match_prod.group(1).strip()
+        
+        # Lógica: O nome do produto é tudo antes do ÚLTIMO traço (-)
+        if '-' in linha_completa:
+            # rsplit separa começando da direita (pega o último traço)
+            produto = linha_completa.rsplit('-', 1)[0].strip()
+        else:
+            # Se não tiver traço (caso raro), pega a linha toda
+            produto = linha_completa
+            
+        # Limpeza final (remove espaços duplos e quebras de linha indesejadas)
+        produto = " ".join(produto.split())
+    else:
+        produto = "Software Desconhecido"
     
     return numero, produto
 
@@ -38,7 +59,7 @@ def cadastrar_no_supabase(num_compra, nome_produto):
     payload = {
         "numero_compra": str(num_compra), 
         "serial_key": serial_key,
-        "nome_produto": nome_produto,  # <--- NOVA INFORMAÇÃO ENVIADA
+        "nome_produto": nome_produto,
         "ativo": True
     }
     
@@ -46,7 +67,9 @@ def cadastrar_no_supabase(num_compra, nome_produto):
         url_completa = f"{SUPABASE_URL}/rest/v1/licencas"
         r = requests.post(url_completa, json=payload, headers=headers)
         if r.status_code in [200, 201]:
-            print(f"✅ Venda: {num_compra} | Produto: {nome_produto} | Key Gerada")
+            print(f"✅ SUCESSO! Venda: {num_compra}")
+            print(f"📦 Produto: {nome_produto}")
+            print(f"🔑 Key: {serial_key}")
         else:
             print(f"❌ Erro Supabase: {r.text}")
     except Exception as e:
@@ -59,7 +82,8 @@ def processar_vendas():
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("inbox")
         
-        status, response = mail.search(None, '(UNSEEN SUBJECT "Venda confirmada -")')
+        # Busca emails não lidos (pode ajustar o assunto se necessário)
+        status, response = mail.search(None, '(UNSEEN SUBJECT "Venda confirmada")')
         email_ids = response[0].split()
         print(f"E-mails novos: {len(email_ids)}")
 
@@ -81,7 +105,9 @@ def processar_vendas():
             
             if numero:
                 cadastrar_no_supabase(numero, produto)
-                mail.store(num, '+FLAGS', '\\Seen')
+                mail.store(num, '+FLAGS', '\\Seen') # Marca como lido
+            else:
+                print("⚠️ E-mail encontrado, mas não achei o número da venda.")
         
         mail.logout()
     except Exception as e:
