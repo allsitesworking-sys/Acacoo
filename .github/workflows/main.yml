@@ -1,8 +1,10 @@
-name: Monitor de Vendas 1900min
+name: Monitor de Vendas 24/7
+
 on:
+  push:                   # NOVO: Roda imediatamente ao salvar
   schedule:
-    - cron: '*/5 * * * *'
-  workflow_dispatch:
+    - cron: '*/6 * * * *' # MUDEI: De 5 para 6 min (Isso reseta o bug do tempo)
+  workflow_dispatch:      # Botão manual
 
 jobs:
   run-bot:
@@ -21,7 +23,6 @@ jobs:
         
       - name: Executar Bot
         env:
-          # AQUI ESTA A CORRECAO: Passando todas as chaves
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
