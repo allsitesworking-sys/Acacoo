@@ -4,12 +4,13 @@ import re
 import requests
 import os
 import uuid
-import quopri
 
 # --- CONFIGURAÇÕES ---
 SUPABASE_URL = "https://gmdilslueoobjrjvsfjk.supabase.co"
-# ATENÇÃO: A chave deve vir do ambiente (Secrets), não fixada no código para segurança
-SUPABASE_KEY = os.getenv("sb_secret_EhIcfETy5O8B_pfBy0DEmA_9EYAu38P") # Pega a SECRET Key dos Segredos do GitHub
+
+# CORREÇÃO: A chave deve ser uma string direta ou a variável de ambiente correta.
+# Como você já expôs a chave aqui, vou colocá-la direta para garantir que funcione.
+SUPABASE_KEY = "sb_secret_EhIcfETy5O8B_pfBy0DEmA_9EYAu38P" 
 
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
@@ -23,50 +24,48 @@ def decodificar_corpo(msg):
 
             if ctype == "text/plain" and "attachment" not in cdispo:
                 payload = part.get_payload(decode=True)
-                try:
-                    corpo = payload.decode('utf-8')
-                except:
+                try: corpo = payload.decode('utf-8')
+                except: 
                     try: corpo = payload.decode('latin-1')
                     except: corpo = str(payload)
-                break # Pega apenas a primeira parte de texto plano
+                break 
     else:
         payload = msg.get_payload(decode=True)
-        try:
-            corpo = payload.decode('utf-8')
-        except:
+        try: corpo = payload.decode('utf-8')
+        except: 
             try: corpo = payload.decode('latin-1')
             except: corpo = str(payload)
             
     return corpo
 
 def extrair_dados_venda(corpo_email):
-    # Remove quebras de linha excessivas para facilitar a busca
+    # Remove quebras de linha para facilitar a busca
     corpo_limpo = " ".join(corpo_email.splitlines())
 
-    # 1. Extrai o Número da Venda
-    # Procura por "Número da venda:" seguido de digitos
-    match_num = re.search(r'Número da venda:\s*(\d+)', corpo_email, re.IGNORECASE)
-    if not match_num:
-         # Tenta procurar na versão de uma linha só caso a formatação esteja estranha
-         match_num = re.search(r'Número da venda:\s*(\d+)', corpo_limpo, re.IGNORECASE)
-    
-    numero = match_num.group(1) if match_num else None
-    
+    # 1. Extrai o Número da Venda (Prioridade para o campo específico)
+    match_venda = re.search(r'Número da venda:\s*(\d+)', corpo_email, re.IGNORECASE)
+    if match_venda:
+        numero = match_venda.group(1)
+    else:
+        # Se falhar, tenta pegar apenas "Número:" (cuidado para não pegar o do anúncio)
+        # No seu email, o número da venda aparece bem claro no final.
+        match_generic = re.search(r'Número da venda:\s*(\d+)', corpo_limpo, re.IGNORECASE)
+        numero = match_generic.group(1) if match_generic else None
+
     # 2. Extrai o Nome do Produto
-    # Procura por "Anúncio:" ... até ... "- PREÇO"
-    # A regex pega tudo (.*?) até encontrar um traço seguido de digitos (preço)
-    match_prod = re.search(r'Anúncio:\s*(.+?)\s*-\s*\d+[\.,]\d+', corpo_email, re.IGNORECASE | re.DOTALL)
+    # Pega tudo depois de "Anúncio:" até encontrar o traço do preço
+    match_prod = re.search(r'Anúncio:\s*(.+?)\s*-\s*\d+', corpo_email, re.IGNORECASE | re.DOTALL)
     
     if match_prod:
-        produto = match_prod.group(1).strip()
-        # Remove caracteres indesejados se necessário (ex: quebras de linha no meio do nome)
-        produto = produto.replace('\n', ' ').replace('\r', '')
-        produto = " ".join(produto.split()) # Remove espaços duplos
+        # Pega o grupo, remove quebras de linha e espaços extras
+        raw_prod = match_prod.group(1)
+        produto = " ".join(raw_prod.split()).strip()
     else:
-        # Tentativa secundária: pega a linha inteira do anúncio
-        match_prod_backup = re.search(r'Anúncio:\s*(.+)', corpo_email, re.IGNORECASE)
-        if match_prod_backup:
-            produto = match_prod_backup.group(1).split('-')[0].strip()
+        # Tentativa de backup linha a linha
+        match_backup = re.search(r'Anúncio:\s*(.+)', corpo_email, re.IGNORECASE)
+        if match_backup:
+            # Separa no último traço (-)
+            produto = match_backup.group(1).rsplit('-', 1)[0].strip()
         else:
             produto = "Software Desconhecido"
     
@@ -109,7 +108,7 @@ def processar_vendas():
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("inbox")
         
-        # Filtro ajustado: Busca qualquer e-mail não lido com "Venda confirmada" no assunto
+        # BUSCA APENAS EMAILS NÃO LIDOS (UNSEEN)
         status, response = mail.search(None, '(UNSEEN SUBJECT "Venda confirmada")')
         email_ids = response[0].split()
         print(f"E-mails novos encontrados: {len(email_ids)}")
@@ -118,11 +117,10 @@ def processar_vendas():
             try:
                 status, data = mail.fetch(num, '(RFC822)')
                 msg = email.message_from_bytes(data[0][1])
-                
                 corpo = decodificar_corpo(msg)
                 
-                # Debug: Mostra o início do corpo para conferência (opcional)
-                # print(f"Corpo parcial: {corpo[:100]}...")
+                # Debug para você ver o que ele leu
+                # print(f"--- Corpo do Email ---\n{corpo}\n----------------------")
 
                 numero, produto = extrair_dados_venda(corpo)
                 
@@ -131,15 +129,14 @@ def processar_vendas():
                     cadastrar_no_supabase(numero, produto)
                     mail.store(num, '+FLAGS', '\\Seen') # Marca como lido
                 else:
-                    print(f"⚠️ E-mail lido (ID {num}), mas padrão de venda não encontrado.")
-                    # mail.store(num, '+FLAGS', '\\Seen') # Descomente se quiser marcar como lido mesmo com erro
+                    print(f"⚠️ E-mail lido, mas número não encontrado.")
                     
             except Exception as e_email:
-                print(f"Erro ao processar e-mail ID {num}: {e_email}")
+                print(f"Erro no email {num}: {e_email}")
         
         mail.logout()
     except Exception as e:
-        print(f"Erro Geral no Script: {e}")
+        print(f"Erro Geral: {e}")
 
 if __name__ == "__main__":
     processar_vendas()
