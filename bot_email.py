@@ -13,36 +13,43 @@ EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
 
 def extrair_dados_venda(corpo_email):
-    # 1. Extrai o Número da Venda (A correção blindada que funcionou)
-    match_num = re.search(r'mero da venda:\D*(\d+)', corpo_email, re.IGNORECASE)
+    # CORREÇÃO CHAVE: Substitui o espaço invisível do HTML (\xa0) por um espaço normal.
+    # Isso faz a sua lógica original voltar a funcionar perfeitamente para os 2 emails.
+    corpo_email = corpo_email.replace('\xa0', ' ')
+
+    # 1. Extrai o Número da Venda (O ID da transação lá no final do email)
+    # Adicionado uma margem de segurança para o acento (N[úu]mero)
+    match_num = re.search(r'N[úu]mero da venda:\s*(\d+)', corpo_email, re.IGNORECASE)
+    
+    # Se falhar por causa de erro na codificação do "N", tenta a palavra cortada (blindagem extra)
+    if not match_num:
+        match_num = re.search(r'mero da venda:\s*(\d+)', corpo_email, re.IGNORECASE)
+        
     numero = match_num.group(1) if match_num else None
     
-    # 2. Extrai o Nome do Produto (Sua lógica adaptada para o novo corpo)
+    # 2. Extrai o Nome do Produto (Lógica Linha por Linha original mantida)
     produto = "Software Desconhecido" # Valor padrão caso não ache
     
     # Divide o e-mail em uma lista de linhas e analisa uma por uma
     linhas = corpo_email.splitlines()
     
     for linha in linhas:
-        # Substitui espaços invisíveis em HTML (\xa0) por espaços normais e limpa
-        linha_limpa = linha.replace(u'\xa0', u' ').strip()
+        # Limpa espaços em branco no começo e fim da linha
+        linha_limpa = linha.strip()
         
-        # Em vez de startswith, usamos "in" para evitar falhas se a linha começar com espaços
-        # Verificamos "núncio:" para contornar qualquer erro na primeira letra 'A'
-        if "núncio:" in linha_limpa.lower() or "nuncio:" in linha_limpa.lower():
+        # Se a linha começar com "Anúncio:", BINGO! Achamos a linha certa.
+        # Adicionado "anuncio:" sem acento por segurança.
+        if linha_limpa.lower().startswith("anúncio:") or linha_limpa.lower().startswith("anuncio:"):
             
-            # Divide a frase onde estão os dois pontos ":"
-            partes = linha_limpa.split(":", 1)
+            # Remove a palavra "Anúncio:" do começo
+            conteudo = linha_limpa.split(":", 1)[1].strip()
             
-            if len(partes) > 1:
-                conteudo = partes[1].strip()
-                
-                # Agora removemos o preço (tudo depois do último traço)
-                if "-" in conteudo:
-                    # Pega só a parte da esquerda do último traço
-                    produto = conteudo.rsplit("-", 1)[0].strip()
-                else:
-                    produto = conteudo
+            # Agora removemos o preço (tudo depois do último traço)
+            if "-" in conteudo:
+                # Pega só a parte da esquerda do último traço
+                produto = conteudo.rsplit("-", 1)[0].strip()
+            else:
+                produto = conteudo
             
             break # Para de procurar, já achamos!
 
