@@ -13,13 +13,11 @@ EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
 
 def extrair_dados_venda(corpo_email):
-    # 1. Extrai o Número da Venda (CORRIGIDO)
-    # Procuramos por "mero da venda:" (ignorando o N e o acento para evitar erros de codificação)
-    # O \D* ignora qualquer espaço, quebra de linha ou sujeira invisível antes do número real
+    # 1. Extrai o Número da Venda (MANTIDA A CORREÇÃO QUE DEU CERTO)
     match_num = re.search(r'mero da venda:\D*(\d+)', corpo_email, re.IGNORECASE)
     numero = match_num.group(1) if match_num else None
     
-    # 2. Extrai o Nome do Produto (Sua lógica Linha por Linha original mantida)
+    # 2. Extrai o Nome do Produto (VOLTOU PARA SUA LÓGICA ORIGINAL)
     produto = "Software Desconhecido" # Valor padrão caso não ache
     
     # Divide o e-mail em uma lista de linhas e analisa uma por uma
@@ -29,9 +27,12 @@ def extrair_dados_venda(corpo_email):
         # Limpa espaços em branco no começo e fim da linha
         linha_limpa = linha.strip()
         
-        # Ignora acentos na palavra anúncio na hora de buscar a linha
-        if linha_limpa.lower().startswith("anúncio:") or linha_limpa.lower().startswith("anuncio:"):
+        # Se a linha começar com "Anúncio:", BINGO! Achamos a linha certa.
+        # Usamos lower() para ignorar maiusculas/minusculas
+        if linha_limpa.lower().startswith("anúncio:"):
             
+            # Remove a palavra "Anúncio:" do começo
+            # Ex: "Anúncio: Mucabrasil... - 39,99" vira " Mucabrasil... - 39,99"
             conteudo = linha_limpa.split(":", 1)[1].strip()
             
             # Agora removemos o preço (tudo depois do último traço)
