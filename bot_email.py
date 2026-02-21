@@ -13,11 +13,11 @@ EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
 
 def extrair_dados_venda(corpo_email):
-    # 1. Extrai o Número da Venda (CORRIGIDO PARA IGNORAR CARACTERES INVISÍVEIS)
+    # 1. Extrai o Número da Venda (A correção que funcionou perfeitamente)
     match_num = re.search(r'mero da venda:\D*(\d+)', corpo_email, re.IGNORECASE)
     numero = match_num.group(1) if match_num else None
     
-    # 2. Extrai o Nome do Produto (Lógica Linha por Linha - CORRIGIDA)
+    # 2. Extrai o Nome do Produto (Sua Lógica Original Exata)
     produto = "Software Desconhecido" # Valor padrão caso não ache
     
     # Divide o e-mail em uma lista de linhas e analisa uma por uma
@@ -27,24 +27,22 @@ def extrair_dados_venda(corpo_email):
         # Limpa espaços em branco no começo e fim da linha
         linha_limpa = linha.strip()
         
-        # Ignora a primeira letra (A) e verifica variações de formatação.
-        # Busca no meio da linha para evitar falhas de espaços HTML no início.
-        if "núncio:" in linha_limpa.lower() or "nuncio:" in linha_limpa.lower():
+        # Se a linha começar com "Anúncio:", BINGO! Achamos a linha certa.
+        # Usamos lower() para ignorar maiusculas/minusculas
+        if linha_limpa.lower().startswith("anúncio:"):
             
-            # Divide a linha onde encontrar os dois pontos
-            partes = linha_limpa.split(":", 1)
+            # Remove a palavra "Anúncio:" do começo
+            # Ex: "Anúncio: Mucabrasil... - 39,99" vira " Mucabrasil... - 39,99"
+            conteudo = linha_limpa.split(":", 1)[1].strip()
             
-            if len(partes) > 1:
-                conteudo = partes[1].strip()
-                
-                # Agora removemos o preço (tudo depois do último traço)
-                if "-" in conteudo:
-                    # Pega só a parte da esquerda do último traço
-                    produto = conteudo.rsplit("-", 1)[0].strip()
-                else:
-                    produto = conteudo
-                
-                break # Para de procurar, já achamos!
+            # Agora removemos o preço (tudo depois do último traço)
+            if "-" in conteudo:
+                # Pega só a parte da esquerda do último traço
+                produto = conteudo.rsplit("-", 1)[0].strip()
+            else:
+                produto = conteudo
+            
+            break # Para de procurar, já achamos!
 
     return numero, produto
 
@@ -71,7 +69,7 @@ def cadastrar_no_supabase(num_compra, nome_produto):
         r = requests.post(url_completa, json=payload, headers=headers)
         if r.status_code in [200, 201]:
             print(f"✅ SUCESSO! Venda: {num_compra}")
-            print(f"📦 Produto: {nome_produto}") # Agora vai aparecer certo!
+            print(f"📦 Produto: {nome_produto}") 
             print(f"🔑 Key: {serial_key}")
         else:
             print(f"❌ Erro Supabase: {r.text}")
