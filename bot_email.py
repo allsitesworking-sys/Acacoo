@@ -13,41 +13,40 @@ EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
 
 def extrair_dados_venda(corpo_email):
-    # LIMPEZA DE HTML: Converte espaços invisíveis da DFGames para espaços normais
+    # Limpa caracteres invisíveis
     corpo_email = corpo_email.replace('\xa0', ' ')
 
     # 1. Extrai o Número da Venda (CORRIGIDO E FUNCIONANDO)
     match_num = re.search(r'mero da venda:\D*(\d+)', corpo_email, re.IGNORECASE)
     numero = match_num.group(1) if match_num else None
     
-    # 2. Extrai o Nome do Produto (CORRIGIDO)
+    # 2. Extrai o Nome do Produto (CORRIGIDO O BUG DO EMPTY)
     produto = "Software Desconhecido" # Valor padrão caso não ache
     
     # Divide o e-mail em uma lista de linhas e analisa uma por uma
     linhas = corpo_email.splitlines()
     
     for linha in linhas:
-        # Limpa espaços em branco normais no começo e fim da linha
         linha_limpa = linha.strip()
         
-        # Em vez de 'startswith', procuramos por "ncio:" em qualquer lugar da linha.
-        # Isso ignora o "A" e o "ú" (evitando falha por acento quebrado ou espaços antes da palavra)
-        if "ncio:" in linha_limpa.lower():
+        # O PULO DO GATO: Procura por "ncio:" mas IGNORA a linha "Detalhes do anúncio:"
+        if "ncio:" in linha_limpa.lower() and "detalhes" not in linha_limpa.lower():
             
-            # Divide a linha exatamente nos dois pontos ":" e pega o que vem depois
             partes = linha_limpa.split(":", 1)
             
             if len(partes) > 1:
                 conteudo = partes[1].strip()
                 
-                # Agora removemos o preço (tudo depois do último traço)
-                if "-" in conteudo:
-                    # Pega só a parte da esquerda do último traço
-                    produto = conteudo.rsplit("-", 1)[0].strip()
-                else:
-                    produto = conteudo
-                
-            break # Para de procurar, já achamos!
+                # Só processa se realmente existir texto na frente dos dois pontos
+                if conteudo != "":
+                    # Agora removemos o preço (tudo depois do último traço)
+                    if "-" in conteudo:
+                        # Pega só a parte da esquerda do último traço
+                        produto = conteudo.rsplit("-", 1)[0].strip()
+                    else:
+                        produto = conteudo
+                    
+                    break # Agora sim achou o produto certo e pode parar de procurar!
 
     return numero, produto
 
