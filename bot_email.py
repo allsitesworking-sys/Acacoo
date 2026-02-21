@@ -13,23 +13,36 @@ EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
 
 def extrair_dados_venda(corpo_email):
-    # 1. Extrai o Número da Venda (Blindado contra caracteres invisíveis)
-    # O \D* ignora qualquer "lixo" (espaços HTML, quebras de linha) antes do número
+    # 1. Extrai o Número da Venda (CORRIGIDO PARA IGNORAR CARACTERES INVISÍVEIS DO HTML)
     match_num = re.search(r"N[úu]mero\s+da\s+venda\D*(\d+)", corpo_email, re.IGNORECASE)
     numero = match_num.group(1) if match_num else None
     
-    # 2. Extrai o Nome do Produto (Captura a linha inteira e ignora formatações ruins)
+    # 2. Extrai o Nome do Produto (Lógica Linha por Linha)
     produto = "Software Desconhecido" # Valor padrão caso não ache
     
-    match_produto = re.search(r"An[úu]ncio:\s*(.*)", corpo_email, re.IGNORECASE)
-    if match_produto:
-        linha_produto = match_produto.group(1).strip()
+    # Divide o e-mail em uma lista de linhas e analisa uma por uma
+    linhas = corpo_email.splitlines()
+    
+    for linha in linhas:
+        # Limpa espaços em branco no começo e fim da linha
+        linha_limpa = linha.strip()
         
-        # Removemos o preço (tudo depois do último traço) se houver
-        if "-" in linha_produto:
-            produto = linha_produto.rsplit("-", 1)[0].strip()
-        else:
-            produto = linha_produto
+        # Se a linha começar com "Anúncio:", BINGO! Achamos a linha certa.
+        # Usamos lower() para ignorar maiusculas/minusculas
+        if linha_limpa.lower().startswith("anúncio:"):
+            
+            # Remove a palavra "Anúncio:" do começo
+            # Ex: "Anúncio: Mucabrasil... - 39,99" vira " Mucabrasil... - 39,99"
+            conteudo = linha_limpa.split(":", 1)[1].strip()
+            
+            # Agora removemos o preço (tudo depois do último traço)
+            if "-" in conteudo:
+                # Pega só a parte da esquerda do último traço
+                produto = conteudo.rsplit("-", 1)[0].strip()
+            else:
+                produto = conteudo
+            
+            break # Para de procurar, já achamos!
 
     return numero, produto
 
@@ -56,7 +69,7 @@ def cadastrar_no_supabase(num_compra, nome_produto):
         r = requests.post(url_completa, json=payload, headers=headers)
         if r.status_code in [200, 201]:
             print(f"✅ SUCESSO! Venda: {num_compra}")
-            print(f"📦 Produto: {nome_produto}")
+            print(f"📦 Produto: {nome_produto}") # Agora vai aparecer certo!
             print(f"🔑 Key: {serial_key}")
         else:
             print(f"❌ Erro Supabase: {r.text}")
@@ -70,7 +83,7 @@ def processar_vendas():
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("inbox")
         
-        # Busca emails não lidos com o assunto específico
+        # Busca emails não lidos
         status, response = mail.search(None, '(UNSEEN SUBJECT "Venda confirmada")')
         email_ids = response[0].split()
         print(f"E-mails novos: {len(email_ids)}")
@@ -83,30 +96,23 @@ def processar_vendas():
             if msg.is_multipart():
                 for part in msg.walk():
                     if part.get_content_type() == "text/plain":
-                        try: 
-                            corpo = part.get_payload(decode=True).decode('utf-8')
-                        except: 
-                            corpo = part.get_payload(decode=True).decode('latin-1')
+                        try: corpo = part.get_payload(decode=True).decode('utf-8')
+                        except: corpo = part.get_payload(decode=True).decode('latin-1')
             else:
-                try: 
-                    corpo = msg.get_payload(decode=True).decode('utf-8')
-                except: 
-                    corpo = msg.get_payload(decode=True).decode('latin-1')
+                try: corpo = msg.get_payload(decode=True).decode('utf-8')
+                except: corpo = msg.get_payload(decode=True).decode('latin-1')
             
             numero, produto = extrair_dados_venda(corpo)
             
             if numero:
                 cadastrar_no_supabase(numero, produto)
-                # Marca o e-mail como lido apenas se tiver sucesso em achar o número
                 mail.store(num, '+FLAGS', '\\Seen')
             else:
                 print(f"⚠️ Não achei o número da venda no email ID {num}")
-                # Útil para debugar: imprime os primeiros 200 caracteres do e-mail problemático
-                print(f"🔍 Trecho do e-mail: {corpo[:200]}...")
         
         mail.logout()
     except Exception as e:
-        print(f"Erro Geral: {e}")
+        print(f"Erro: {e}")
 
 if __name__ == "__main__":
     processar_vendas()
