@@ -13,14 +13,13 @@ EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
 
 def extrair_dados_venda(corpo_email):
-    # Limpa espaços invisíveis do HTML que vêm no e-mail original
-    corpo_email = corpo_email.replace('\xa0', ' ')
-
-    # 1. Extrai o Número da Venda (A correção que funcionou perfeitamente)
+    # 1. Extrai o Número da Venda (CORRIGIDO)
+    # Procuramos por "mero da venda:" (ignorando o N e o acento para evitar erros de codificação)
+    # O \D* ignora qualquer espaço, quebra de linha ou sujeira invisível antes do número real
     match_num = re.search(r'mero da venda:\D*(\d+)', corpo_email, re.IGNORECASE)
     numero = match_num.group(1) if match_num else None
     
-    # 2. Extrai o Nome do Produto (Sua Lógica Original Adaptada)
+    # 2. Extrai o Nome do Produto (Sua lógica Linha por Linha original mantida)
     produto = "Software Desconhecido" # Valor padrão caso não ache
     
     # Divide o e-mail em uma lista de linhas e analisa uma por uma
@@ -30,13 +29,12 @@ def extrair_dados_venda(corpo_email):
         # Limpa espaços em branco no começo e fim da linha
         linha_limpa = linha.strip()
         
-        # Procuramos por "ncio:" para ignorar o "Anú" e evitar o erro do acento!
-        if "ncio:" in linha_limpa.lower():
+        # Ignora acentos na palavra anúncio na hora de buscar a linha
+        if linha_limpa.lower().startswith("anúncio:") or linha_limpa.lower().startswith("anuncio:"):
             
-            # Separa a frase no exato local dos dois pontos ":"
             conteudo = linha_limpa.split(":", 1)[1].strip()
             
-            # Sua lógica original: remove o preço (tudo depois do último traço)
+            # Agora removemos o preço (tudo depois do último traço)
             if "-" in conteudo:
                 # Pega só a parte da esquerda do último traço
                 produto = conteudo.rsplit("-", 1)[0].strip()
@@ -70,7 +68,7 @@ def cadastrar_no_supabase(num_compra, nome_produto):
         r = requests.post(url_completa, json=payload, headers=headers)
         if r.status_code in [200, 201]:
             print(f"✅ SUCESSO! Venda: {num_compra}")
-            print(f"📦 Produto: {nome_produto}") 
+            print(f"📦 Produto: {nome_produto}")
             print(f"🔑 Key: {serial_key}")
         else:
             print(f"❌ Erro Supabase: {r.text}")
