@@ -1,30 +1,30 @@
-name: Monitor de Vendas 24/7
+name: Monitor de Vendas 24 horas por dia, 7 dias por semana
 
 on:
-  push:                   # NOVO: Roda imediatamente ao salvar
   schedule:
-    - cron: '*/6 * * * *' # MUDEI: De 5 para 6 min (Isso reseta o bug do tempo)
-  workflow_dispatch:      # Botão manual
+    - cron: '*/6 * * * *'  # De 5 para 6 min (Isso reseta o bug do tempo)
+  workflow_dispatch:        # Botão manual
 
 jobs:
   run-bot:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04   # Versão estável do Ubuntu
     steps:
       - name: Baixar Codigo
-        uses: actions/checkout@v3
-        
+        uses: actions/checkout@v4  # Atualizado para v4 (Evita erro de Node.js)
+
       - name: Instalar Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5  # Atualizado para v5
         with:
-          python-version: '3.9'
-          
+          python-version: '3.11'       # Versão compatível e moderna
+
       - name: Instalar Bibliotecas
-        run: pip install requests
-        
+        run: |
+          pip install supabase beautifulsoup4 requests
+
       - name: Executar Bot
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }} 
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         run: python bot_email.py
